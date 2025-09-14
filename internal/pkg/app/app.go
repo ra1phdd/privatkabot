@@ -105,6 +105,11 @@ func New() error {
 	})
 
 	a.bot.Handle("/delete", func(c tele.Context) error {
+		if _, ok := a.cfg.AdminUsers[c.Sender().ID]; !ok {
+			a.log.Warn("Unauthorized attempt to use /delete", c.Sender().ID)
+			return nil
+		}
+
 		if c.Message().ReplyTo == nil {
 			return nil
 		}
