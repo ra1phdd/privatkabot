@@ -104,26 +104,51 @@ func New() error {
 		return c.Reply("Успешно!")
 	})
 
+	a.bot.Handle("/delete", func(c tele.Context) error {
+		if c.Message().ReplyTo == nil {
+			return nil
+		}
+		targetMessage := c.Message().ReplyTo
+
+		if err := a.bot.Delete(targetMessage); err != nil {
+			a.log.Error("Failed to delete target message", err, slog.Int("message_id", targetMessage.ID))
+		} else {
+			a.log.Info("Target message deleted", slog.Int("message_id", targetMessage.ID))
+		}
+
+		if err := a.bot.Delete(c.Message()); err != nil {
+			a.log.Error("Failed to delete /delete command message", err, slog.Int("message_id", c.Message().ID))
+		}
+
+		return nil
+	})
+
 	a.log.Info("Starting bot")
 	a.bot.Start()
 	return nil
 }
 
 func (a *App) processingMessage(c tele.Context) error {
-	if c.Message() == nil || c.Message().Via == nil {
+	msg := c.Message()
+	if msg == nil {
+		return nil
+	}
+
+	if msg.Via == nil && msg.Animation == nil {
 		return nil
 	}
 
 	dur := a.cfg.Duration
-	if exceptDur, ok := a.cfg.BotExceptions[c.Message().Via.Username]; ok {
-		if exceptDur == time.Duration(0) {
-			return nil
+	if msg.Via != nil {
+		if exceptDur, ok := a.cfg.BotExceptions[msg.Via.Username]; ok {
+			if exceptDur == time.Duration(0) {
+				return nil
+			}
+			dur = exceptDur
 		}
-
-		dur = exceptDur
 	}
 
-	a.log.Info("Processing message", slog.String("text", c.Message().Text), slog.String("bot", c.Message().Via.Username))
+	a.log.Info("Processing message", slog.String("text", c.Message().Text))
 	a.tw.AddTimer(strconv.Itoa(c.Message().ID), dur, false, map[string]any{
 		"message": c.Message(),
 	}, func(m map[string]any) {
